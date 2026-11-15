@@ -59,6 +59,9 @@ with db_lock:
         CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, last_seen REAL, blocked INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS balances(user_id INTEGER PRIMARY KEY, coins INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS tx(user_id INTEGER, ts REAL, delta INTEGER, reason TEXT);
+        CREATE TABLE IF NOT EXISTS banned(user_id INTEGER PRIMARY KEY);
+        CREATE TABLE IF NOT EXISTS cd_skip(user_id INTEGER PRIMARY KEY, ts REAL);
+        CREATE TABLE IF NOT EXISTS bj(user_id INTEGER PRIMARY KEY, deck TEXT, player TEXT, dealer TEXT, bet INTEGER);
         """
     )
     db.commit()
@@ -104,16 +107,21 @@ def check_init_data(init_data: str) -> dict:
     return json.loads(pairs["user"])
 
 
-def seconds_left(uid: int) -> int:
+def _cd_nolock(uid: int) -> int:
     if uid == OWNER_ID:
         return 0
-    with db_lock:
-        row = db.execute("SELECT MAX(ts) FROM spins WHERE user_id=?", (uid,)).fetchone()
-    last = row[0]
+    last = db.execute("SELECT MAX(ts) FROM spins WHERE user_id=?", (uid,)).fetchone()[0]
     if not last:
+        return 0
+    skip = db.execute("SELECT ts FROM cd_skip WHERE user_id=?", (uid,)).fetchone()
+    if skip and skip[0] >= last:  # админ сбросил кулдаун после последней прокрутки
         return 0
     return max(0, int(COOLDOWN - (time.time() - last)))
 
+
+def seconds_left(uid: int) -> int:
+    with db_lock:
+        return _cd_nolock(uid)
 
 
 # ---------- пользователи и баланс ----------
@@ -140,6 +148,25 @@ def add_balance(uid: int, delta: int, reason: str) -> int:
     db.execute("INSERT INTO tx VALUES(?,?,?,?)", (uid, time.time(), delta, reason))
     db.commit()
     return get_balance(uid)
+
+
+def resolve_target(target: str):
+    """Вызывать под db_lock. ID или @username -> (user_id, first_name, username) или None."""
+    t = str(target).strip()
+    if not t:
+        return None
+    if t.lstrip("-").isdigit():
+        return db.execute("SELECT user_id, first_name, username FROM users WHERE user_id=?", (int(t),)).fetchone()
+    return db.execute(
+        "SELECT user_id, first_name, username FROM users WHERE username=?", (t.lstrip("@").lower(),)
+    ).fetchone()
+
+
+def is_banned(uid: int) -> bool:
+    return db.execute("SELECT 1 FROM banned WHERE user_id=?", (uid,)).fetchone() is not None
+
+
+BANNED_RESP = lambda: JSONResponse({"error": "banned"}, status_code=403)
 
 
 async def body_user(req: Request):
@@ -200,12 +227,7 @@ async def spin(req: Request):
     return {"index": idx, "name": name, "left": 0 if uid == OWNER_ID else COOLDOWN}
 
 
-def seconds_left_nolock(uid: int) -> int:
-    if uid == OWNER_ID:
-        return 0
-    last = db.execute("SELECT MAX(ts) FROM spins WHERE user_id=?", (uid,)).fetchone()[0]
-    return max(0, int(COOLDOWN - (time.time() - last))) if last else 0
-
+seconds_left_nolock = _cd_nolock
 
 
 # ---------- мини-игры ----------
@@ -221,6 +243,8 @@ async def coin(req: Request):
     if side not in COIN_SIDES or bet < 1 or bet > MAX_BET:
         return JSONResponse({"error": "bad_bet"}, status_code=400)
     with db_lock:  # атомарно: проверка баланса + списание/начисление
+        if is_banned(uid):
+            return BANNED_RESP()
         bal = get_balance(uid)
         if bet > bal:
             return JSONResponse({"error": "no_money", "balance": bal}, status_code=400)
@@ -259,21 +283,12 @@ async def admin_give(req: Request):
     if amount == 0 or abs(amount) > MAX_BET:
         return JSONResponse({"error": "Некорректная сумма"}, status_code=400)
     with db_lock:
-        if target.lstrip("@").lower() and not target.lstrip("-").isdigit():
-            row = db.execute(
-                "SELECT user_id, first_name FROM users WHERE username=?", (target.lstrip("@").lower(),)
-            ).fetchone()
-        elif target.lstrip("-").isdigit():
-            row = db.execute(
-                "SELECT user_id, first_name FROM users WHERE user_id=?", (int(target),)
-            ).fetchone()
-        else:
-            row = None
+        row = resolve_target(target)
         if not row:
             return JSONResponse(
                 {"error": "Пользователь не найден (он должен хотя бы раз открыть бота)"}, status_code=404
             )
-        uid, name = row
+        uid, name = row[0], row[1]
         if amount < 0 and get_balance(uid) + amount < 0:
             amount = -get_balance(uid)  # не уходим в минус
             if amount == 0:
@@ -329,6 +344,261 @@ async def admin_broadcast(req: Request):
     _broadcast_running = True
     asyncio.create_task(run_broadcast(text))
     return {"ok": True, "recipients": n}
+
+
+# ---------- Блэкджек ----------
+SUITS = "♠♥♦♣"
+RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+
+
+def card_val(c: str) -> int:
+    r = c[:-1]
+    return 11 if r == "A" else 10 if r in ("J", "Q", "K") else int(r)
+
+
+def hand_value(cards) -> int:
+    total = sum(card_val(c) for c in cards)
+    aces = sum(1 for c in cards if c[:-1] == "A")
+    while total > 21 and aces:
+        total -= 10
+        aces -= 1
+    return total
+
+
+def bj_load(uid: int):
+    row = db.execute("SELECT deck, player, dealer, bet FROM bj WHERE user_id=?", (uid,)).fetchone()
+    if not row:
+        return None
+    return {"deck": json.loads(row[0]), "player": json.loads(row[1]), "dealer": json.loads(row[2]), "bet": row[3]}
+
+
+def bj_save(uid: int, g: dict):
+    db.execute(
+        "INSERT OR REPLACE INTO bj VALUES(?,?,?,?,?)",
+        (uid, json.dumps(g["deck"]), json.dumps(g["player"]), json.dumps(g["dealer"]), g["bet"]),
+    )
+    db.commit()
+
+
+def bj_view(uid: int, g: dict, outcome=None, payout=0) -> dict:
+    finished = outcome is not None
+    dealer = g["dealer"] if finished else [g["dealer"][0], "??"]
+    bal = get_balance(uid)
+    return {
+        "active": not finished,
+        "player": g["player"], "player_value": hand_value(g["player"]),
+        "dealer": dealer, "dealer_value": hand_value(g["dealer"]) if finished else hand_value(g["dealer"][:1]),
+        "bet": g["bet"], "outcome": outcome, "payout": payout, "balance": bal,
+        "can_double": (not finished) and len(g["player"]) == 2 and bal >= g["bet"],
+    }
+
+
+def bj_settle(uid: int, g: dict, outcome: str) -> dict:
+    bet = g["bet"]
+    payout = {"blackjack": bet + bet * 3 // 2, "win": bet * 2, "push": bet, "lose": 0}[outcome]
+    if payout:
+        add_balance(uid, payout, f"bj {outcome}")
+    db.execute("DELETE FROM bj WHERE user_id=?", (uid,))
+    db.commit()
+    return bj_view(uid, g, outcome, payout)
+
+
+def bj_stand(uid: int, g: dict) -> dict:
+    while hand_value(g["dealer"]) < 17:  # дилер берёт до 17
+        g["dealer"].append(g["deck"].pop())
+    pv, dv = hand_value(g["player"]), hand_value(g["dealer"])
+    outcome = "win" if dv > 21 or pv > dv else "push" if pv == dv else "lose"
+    return bj_settle(uid, g, outcome)
+
+
+@app.post("/api/bj/state")
+async def bj_state(req: Request):
+    _, user = await body_user(req)
+    with db_lock:
+        g = bj_load(user["id"])
+        return bj_view(user["id"], g) if g else {"active": False, "balance": get_balance(user["id"])}
+
+
+@app.post("/api/bj/start")
+async def bj_start(req: Request):
+    body, user = await body_user(req)
+    uid = user["id"]
+    try:
+        bet = int(body.get("bet"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "bad_bet"}, status_code=400)
+    if bet < 1 or bet > MAX_BET:
+        return JSONResponse({"error": "bad_bet"}, status_code=400)
+    with db_lock:
+        if is_banned(uid):
+            return BANNED_RESP()
+        if bj_load(uid):
+            return JSONResponse({"error": "already_active"}, status_code=409)
+        bal = get_balance(uid)
+        if bet > bal:
+            return JSONResponse({"error": "no_money", "balance": bal}, status_code=400)
+        add_balance(uid, -bet, "bj bet")
+        deck = [r + s_ for r in RANKS for s_ in SUITS]
+        secrets.SystemRandom().shuffle(deck)
+        g = {"deck": deck, "player": [deck.pop(), deck.pop()], "dealer": [], "bet": bet}
+        g["dealer"] = [g["deck"].pop(), g["deck"].pop()]
+        p_bj, d_bj = hand_value(g["player"]) == 21, hand_value(g["dealer"]) == 21
+        if p_bj and d_bj:
+            return bj_settle(uid, g, "push")
+        if p_bj:
+            return bj_settle(uid, g, "blackjack")
+        if d_bj:
+            return bj_settle(uid, g, "lose")
+        bj_save(uid, g)
+        return bj_view(uid, g)
+
+
+@app.post("/api/bj/action")
+async def bj_action(req: Request):
+    body, user = await body_user(req)
+    uid, act = user["id"], body.get("action")
+    with db_lock:
+        g = bj_load(uid)
+        if not g:
+            return JSONResponse({"error": "no_game"}, status_code=409)
+        if act == "hit":
+            g["player"].append(g["deck"].pop())
+            v = hand_value(g["player"])
+            if v > 21:
+                return bj_settle(uid, g, "lose")
+            if v == 21:
+                return bj_stand(uid, g)
+            bj_save(uid, g)
+            return bj_view(uid, g)
+        if act == "stand":
+            return bj_stand(uid, g)
+        if act == "double":
+            if len(g["player"]) != 2 or get_balance(uid) < g["bet"]:
+                return JSONResponse({"error": "cant_double"}, status_code=400)
+            add_balance(uid, -g["bet"], "bj double")
+            g["bet"] *= 2
+            g["player"].append(g["deck"].pop())
+            if hand_value(g["player"]) > 21:
+                return bj_settle(uid, g, "lose")
+            return bj_stand(uid, g)
+        return JSONResponse({"error": "bad_action"}, status_code=400)
+
+
+# ---------- ещё функции админа ----------
+@app.post("/api/admin/find")
+async def admin_find(req: Request):
+    body, _ = await body_admin(req)
+    with db_lock:
+        row = resolve_target(body.get("target", ""))
+        if not row:
+            return JSONResponse({"error": "Пользователь не найден"}, status_code=404)
+        uid = row[0]
+        info = db.execute("SELECT last_seen, blocked FROM users WHERE user_id=?", (uid,)).fetchone()
+        spins = db.execute("SELECT COUNT(*) FROM spins WHERE user_id=?", (uid,)).fetchone()[0]
+        return {
+            "id": uid, "name": row[1], "username": row[2], "balance": get_balance(uid),
+            "last_seen": info[0], "blocked_bot": bool(info[1]), "banned": is_banned(uid),
+            "spins": spins, "cooldown_left": _cd_nolock(uid),
+        }
+
+
+@app.post("/api/admin/setbal")
+async def admin_setbal(req: Request):
+    body, _ = await body_admin(req)
+    try:
+        amount = int(body.get("amount"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Некорректная сумма"}, status_code=400)
+    if amount < 0 or amount > MAX_BET:
+        return JSONResponse({"error": "Сумма от 0 до 1 000 000 000"}, status_code=400)
+    with db_lock:
+        row = resolve_target(body.get("target", ""))
+        if not row:
+            return JSONResponse({"error": "Пользователь не найден"}, status_code=404)
+        delta = amount - get_balance(row[0])
+        bal = add_balance(row[0], delta, "admin set") if delta else amount
+    return {"ok": True, "name": row[1], "balance": bal}
+
+
+@app.post("/api/admin/giveall")
+async def admin_giveall(req: Request):
+    global _broadcast_running
+    body, _ = await body_admin(req)
+    try:
+        amount = int(body.get("amount"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Некорректная сумма"}, status_code=400)
+    notify = bool(body.get("notify"))
+    if amount < 1 or amount > MAX_BET:
+        return JSONResponse({"error": "Сумма от 1 до 1 000 000 000"}, status_code=400)
+    if notify and _broadcast_running:
+        return JSONResponse({"error": "Сейчас идёт рассылка, подождите"}, status_code=409)
+    with db_lock:
+        ids = [r[0] for r in db.execute("SELECT user_id FROM users").fetchall()]
+        for uid in ids:
+            add_balance(uid, amount, "admin give all")
+    if notify:
+        _broadcast_running = True
+        asyncio.create_task(run_broadcast(f"🎁 Всем игрокам начислено {amount} {CURRENCY}! Заходите играть."))
+    return {"ok": True, "count": len(ids)}
+
+
+@app.post("/api/admin/resetcd")
+async def admin_resetcd(req: Request):
+    body, _ = await body_admin(req)
+    with db_lock:
+        row = resolve_target(body.get("target", ""))
+        if not row:
+            return JSONResponse({"error": "Пользователь не найден"}, status_code=404)
+        db.execute("INSERT OR REPLACE INTO cd_skip VALUES(?,?)", (row[0], time.time()))
+        db.commit()
+    return {"ok": True, "name": row[1]}
+
+
+@app.post("/api/admin/ban")
+async def admin_ban(req: Request):
+    body, _ = await body_admin(req)
+    ban = bool(body.get("ban"))
+    with db_lock:
+        row = resolve_target(body.get("target", ""))
+        if not row:
+            return JSONResponse({"error": "Пользователь не найден"}, status_code=404)
+        if row[0] == OWNER_ID:
+            return JSONResponse({"error": "Себя банить нельзя 🙂"}, status_code=400)
+        if ban:
+            db.execute("INSERT OR IGNORE INTO banned VALUES(?)", (row[0],))
+        else:
+            db.execute("DELETE FROM banned WHERE user_id=?", (row[0],))
+        db.commit()
+    return {"ok": True, "name": row[1], "banned": ban}
+
+
+@app.post("/api/admin/dm")
+async def admin_dm(req: Request):
+    body, _ = await body_admin(req)
+    text = str(body.get("text", "")).strip()
+    if not text or len(text) > 4000:
+        return JSONResponse({"error": "Текст пустой или длиннее 4000 символов"}, status_code=400)
+    with db_lock:
+        row = resolve_target(body.get("target", ""))
+    if not row:
+        return JSONResponse({"error": "Пользователь не найден"}, status_code=404)
+    r = await tg("sendMessage", chat_id=row[0], text=f"💬 Сообщение от администратора:\n\n{text}")
+    if not r.get("ok"):
+        return JSONResponse({"error": "Не доставлено (возможно, пользователь заблокировал бота)"}, status_code=502)
+    return {"ok": True, "name": row[1]}
+
+
+@app.post("/api/admin/log")
+async def admin_log(req: Request):
+    await body_admin(req)
+    with db_lock:
+        rows = db.execute(
+            "SELECT t.ts, t.user_id, u.first_name, u.username, t.delta, t.reason FROM tx t "
+            "LEFT JOIN users u ON u.user_id=t.user_id ORDER BY t.ts DESC LIMIT 25"
+        ).fetchall()
+    return {"items": [{"ts": a, "id": b, "name": c or "", "username": d or "", "delta": e, "reason": f}
+                      for a, b, c, d, e, f in rows]}
 
 
 _IMAGES = {"clover.svg", "ace.svg", "money.svg", "sad.svg"}

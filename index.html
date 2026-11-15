@@ -58,10 +58,28 @@
   .msg { margin-top:10px; text-align:center; font-weight:700; min-height:24px; }
   .top div { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #ffffff14; font-size:14px; }
   .pink { border-color:var(--pink); background:linear-gradient(90deg,#6b2b55,#111); }
+
+  .nav div b { display:block; font-size:20px; font-weight:400; line-height:1.2; }
+  .nav { gap:2px; } .nav div { font-size:12px; padding:8px 2px; }
+  .nav.sub div { font-size:13px; padding:10px 2px; }
+  .hand { min-height:72px; } .hl { margin-top:10px; font-size:14px; opacity:.8; }
+  .pc { display:inline-flex; width:46px; height:64px; border-radius:8px; background:#fff; color:#111; font-weight:700; font-size:17px;
+        align-items:center; justify-content:center; margin:4px 4px 0 0; box-shadow:0 2px 8px #0008; }
+  .pc.red { color:#d11; }
+  .pc.back { background:repeating-linear-gradient(45deg,#6a46c9,#6a46c9 6px,#4a2ea0 6px,#4a2ea0 12px); color:transparent; }
+  .btnrow { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .btnrow.three { grid-template-columns:1fr 1fr 1fr; }
+  .btnrow button { margin-top:0; padding:12px 4px; font-size:15px; max-width:none; }
+  .info { font-size:14px; line-height:1.6; margin-top:10px; opacity:.9; word-break:break-word; }
+  .logrow { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #ffffff14; font-size:13px; }
+  .logrow small { opacity:.6; display:block; }
+  .chk { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; }
+  .chk input { width:auto; margin:0; }
+  .soon { text-align:center; padding:30px 16px; } .soon .big { font-size:64px; } .soon .t { font-size:22px; font-weight:700; margin-top:8px; }
 </style>
 </head>
 <body>
-<div class="nav"><div id="n1" class="on">🎰 Рулетка</div><div id="n2">🎮 Игры</div><div id="n3" style="display:none">🛠 Админ</div></div>
+<div class="nav"><div id="n1" class="on"><b>🎰</b>Рулетка</div><div id="n2"><b>🎮</b>Игры</div><div id="n4"><b>📜</b>Квесты</div><div id="n3" style="display:none"><b>🛠</b>Админ</div></div>
 <div id="balbox" class="bal">🪙 <span id="bal">0</span></div>
 
 <div id="p1" class="page on">
@@ -76,32 +94,80 @@
 </div>
 
 <div id="p2" class="page">
-  <div class="card">
+  <div class="nav sub" style="margin-top:8px"><div id="sw1" class="on">🥟 Пельмень/Тапок</div><div id="sw2">🃏 Блэкджек</div></div>
+
+  <div class="card" id="gc1">
     <h2>🥟 Пельмень или 🩴 Тапок</h2>
     <div class="coinwrap"><div class="coin" id="coin"><div class="face f">🥟</div><div class="face b">🩴</div></div></div>
     <div class="sides"><div id="s_pelmen" class="on"><span>🥟</span>Пельмень</div><div id="s_tapok"><span>🩴</span>Тапок</div></div>
     <input id="bet" type="number" inputmode="numeric" min="1" placeholder="Ставка" value="10">
-    <div class="quick"><span data-q="10">10</span><span data-q="100">100</span><span data-q="half">½</span><span data-q="all">Все</span></div>
-    <button id="flip" class="" style="margin-top:14px">Подбросить</button>
+    <div class="quick" data-for="bet"><span data-q="10">10</span><span data-q="100">100</span><span data-q="half">½</span><span data-q="all">Все</span></div>
+    <button id="flip" style="margin-top:14px">Подбросить</button>
     <div class="msg" id="coinmsg"></div>
     <div style="opacity:.6;font-size:13px;text-align:center">Угадал — ставка x2, не угадал — прощай, монетки.<br>Монеты выдаёт администратор.</div>
   </div>
+
+  <div class="card" id="gc2" style="display:none">
+    <h2>🃏 Блэкджек</h2>
+    <div class="hl">Дилер <b id="bj_dv"></b></div><div class="hand" id="bj_d"></div>
+    <div class="hl">Вы <b id="bj_pv"></b></div><div class="hand" id="bj_p"></div>
+    <div id="bj_bet_box">
+      <input id="bjbet" type="number" inputmode="numeric" min="1" placeholder="Ставка" value="10">
+      <div class="quick" data-for="bjbet"><span data-q="10">10</span><span data-q="100">100</span><span data-q="half">½</span><span data-q="all">Все</span></div>
+      <button id="bj_start" style="margin-top:14px">Раздать</button>
+    </div>
+    <div id="bj_act_box" class="btnrow three" style="display:none">
+      <button id="bj_hit">Взять</button><button id="bj_stand">Хватит</button><button id="bj_double">Удвоить</button>
+    </div>
+    <div class="msg" id="bjmsg"></div>
+    <div style="opacity:.6;font-size:13px;text-align:center">Блэкджек платит 3:2, дилер берёт до 17, ничья возвращает ставку.</div>
+  </div>
+</div>
+
+<div id="p4" class="page">
+  <div class="card soon"><div class="big">📜</div><div class="t">Квесты</div><div style="margin-top:8px;font-size:18px">Скоро ⏳</div></div>
 </div>
 
 <div id="p3" class="page">
-  <div class="card"><h2>📊 Статистика</h2><div id="stats">…</div><div class="top" id="top"></div></div>
-  <div class="card">
-    <h2>💰 Выдать монеты</h2>
-    <input id="g_target" placeholder="ID или @username">
-    <input id="g_amount" type="number" inputmode="numeric" placeholder="Сумма (отрицательная — списать)">
-    <button id="g_btn" style="margin-top:12px">Выдать</button>
-    <div class="msg" id="g_msg"></div>
+  <div class="nav sub" style="margin-top:8px"><div id="a1" class="on">📊 Обзор</div><div id="a2">👤 Игрок</div><div id="a3">📣 Рассылка</div></div>
+
+  <div id="ap1" style="width:100%;display:flex;flex-direction:column;align-items:center">
+    <div class="card"><h2>📊 Статистика</h2><div id="stats">…</div><div class="top" id="top"></div></div>
+    <div class="card">
+      <h2>🎁 Раздать всем</h2>
+      <input id="ga_amount" type="number" inputmode="numeric" placeholder="Сколько монет каждому">
+      <label class="chk"><input type="checkbox" id="ga_notify"> Уведомить всех сообщением в боте</label>
+      <button id="ga_btn" style="margin-top:12px">Раздать</button>
+      <div class="msg" id="ga_msg"></div>
+    </div>
+    <div class="card"><h2>🧾 Последние операции</h2><div id="log">…</div></div>
   </div>
-  <div class="card">
-    <h2>📣 Рассылка</h2>
-    <textarea id="b_text" maxlength="4000" placeholder="Текст сообщения для всех пользователей бота"></textarea>
-    <button id="b_btn" class="pink" style="margin-top:12px">Отправить всем</button>
-    <div class="msg" id="b_msg"></div>
+
+  <div id="ap2" style="width:100%;display:none;flex-direction:column;align-items:center">
+    <div class="card">
+      <h2>👤 Игрок</h2>
+      <input id="u_target" placeholder="ID или @username">
+      <button id="u_find" style="margin-top:12px">Найти</button>
+      <div class="info" id="u_info"></div>
+      <input id="u_amount" type="number" inputmode="numeric" placeholder="Сумма" style="margin-top:14px">
+      <div class="btnrow">
+        <button id="u_give">➕ Выдать</button><button id="u_take">➖ Списать</button>
+        <button id="u_set">✏️ Установить баланс</button><button id="u_cd">⏱ Сбросить рулетку</button>
+        <button id="u_ban" class="pink">🚫 Бан в играх</button><button id="u_unban">✅ Разбан</button>
+      </div>
+      <textarea id="u_text" maxlength="4000" placeholder="Личное сообщение игроку" style="margin-top:14px"></textarea>
+      <button id="u_dm" style="margin-top:10px">✉️ Отправить</button>
+      <div class="msg" id="u_msg"></div>
+    </div>
+  </div>
+
+  <div id="ap3" style="width:100%;display:none;flex-direction:column;align-items:center">
+    <div class="card">
+      <h2>📣 Рассылка</h2>
+      <textarea id="b_text" maxlength="4000" placeholder="Текст сообщения для всех пользователей бота"></textarea>
+      <button id="b_btn" class="pink" style="margin-top:12px">Отправить всем</button>
+      <div class="msg" id="b_msg"></div>
+    </div>
   </div>
 </div>
 
@@ -194,11 +260,11 @@ let isAdmin = false;
 const $ = id => document.getElementById(id);
 function setBal(v) { $("bal").textContent = v.toLocaleString("ru-RU"); window._bal = v; }
 function showPage(n) {
-  [1,2,3].forEach(i => { $("p"+i).classList.toggle("on", i===n); $("n"+i).classList.toggle("on", i===n); });
-  $("balbox").style.display = n===3 ? "none" : "block";
-  if (n===3) loadStats();
+  [1,2,3,4].forEach(i => { $("p"+i).classList.toggle("on", i===n); $("n"+i).classList.toggle("on", i===n); });
+  $("balbox").style.display = (n===1 || n===2) ? "block" : "none";
+  if (n===3) { loadStats(); loadLog(); }
 }
-[1,2,3].forEach(i => $("n"+i).onclick = () => showPage(i));
+[1,2,3,4].forEach(i => $("n"+i).onclick = () => showPage(i));
 async function post(path, extra) {
   const r = await fetch(path, { method:"POST", headers:{"Content-Type":"application/json"},
                                 body: JSON.stringify({ initData: tg.initData, ...extra }) });
@@ -212,7 +278,7 @@ $("s_pelmen").onclick = () => { side="pelmen"; $("s_pelmen").className="on"; $("
 $("s_tapok").onclick  = () => { side="tapok";  $("s_tapok").className="on";  $("s_pelmen").className=""; };
 document.querySelectorAll(".quick span").forEach(el => el.onclick = () => {
   const q = el.dataset.q, b = window._bal || 0;
-  $("bet").value = q==="all" ? b : q==="half" ? Math.floor(b/2) : q;
+  $(el.parentElement.dataset.for).value = q==="all" ? b : q==="half" ? Math.floor(b/2) : q;
 });
 const FUNNY_WIN  = ["Пельмень зашёл идеально! 🥟","Тапок в этот раз на твоей стороне 🩴","Фортуна подмигнула из-под дивана 😎"];
 const FUNNY_LOSE = ["Мимо! Бабушка бы не одобрила 👵","Тапок прилетел не туда 🤡","Пельмень сбежал со сковородки 🏃"];
@@ -225,7 +291,7 @@ $("flip").onclick = async () => {
   flipping = true; $("flip").disabled = true; $("coinmsg").textContent = "";
   const { status, data } = await post("/api/coin", { bet, side });
   if (status !== 200) {
-    $("coinmsg").textContent = data.error === "no_money" ? "Недостаточно монет 🪙" : "Ошибка, попробуйте позже";
+    $("coinmsg").textContent = data.error === "banned" ? "Вам закрыт доступ к играм 🚫" : data.error === "no_money" ? "Недостаточно монет 🪙" : "Ошибка, попробуйте позже";
     if (data.balance !== undefined) setBal(data.balance);
     flipping = false; $("flip").disabled = false; return;
   }
@@ -239,7 +305,64 @@ $("flip").onclick = async () => {
   }, 2500);
 };
 
+// ---------- переключатель игр ----------
+function showGame(n) {
+  $("gc1").style.display = n===1 ? "block" : "none"; $("gc2").style.display = n===2 ? "block" : "none";
+  $("sw1").classList.toggle("on", n===1); $("sw2").classList.toggle("on", n===2);
+}
+$("sw1").onclick = () => showGame(1); $("sw2").onclick = () => showGame(2);
+
+// ---------- Блэкджек ----------
+function cardEl(c) {
+  const d = document.createElement("div"); d.className = "pc";
+  if (c === "??") { d.classList.add("back"); d.textContent = "?"; return d; }
+  const suit = c.slice(-1); if (suit === "♥" || suit === "♦") d.classList.add("red");
+  d.textContent = c; return d;
+}
+function renderBJ(st) {
+  $("bj_d").replaceChildren(...st.dealer.map(cardEl)); $("bj_p").replaceChildren(...st.player.map(cardEl));
+  $("bj_dv").textContent = st.dealer_value ? "· " + st.dealer_value : ""; $("bj_pv").textContent = "· " + st.player_value;
+  setBal(st.balance);
+  $("bj_bet_box").style.display = st.active ? "none" : "block";
+  $("bj_act_box").style.display = st.active ? "grid" : "none";
+  $("bj_double").disabled = !st.can_double;
+  if (!st.active) {
+    const net = st.payout - st.bet;
+    $("bjmsg").textContent = {
+      blackjack: `🃏 Блэкджек! +${net} 🪙`, win: `🎉 Победа! +${net} 🪙`,
+      push: "🤝 Ничья, ставка возвращена", lose: `💀 Проигрыш −${st.bet} 🪙` }[st.outcome];
+    tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(st.outcome==="lose" ? "error" : st.outcome==="push" ? "warning" : "success");
+  } else $("bjmsg").textContent = "";
+}
+let bjBusy = false;
+async function bjCall(path, extra) {
+  if (bjBusy) return; bjBusy = true;
+  const { status, data } = await post(path, extra);
+  bjBusy = false;
+  if (status === 200) { renderBJ(data); return; }
+  if (data.balance !== undefined) setBal(data.balance);
+  $("bjmsg").textContent = data.error === "banned" ? "Вам закрыт доступ к играм 🚫"
+    : data.error === "no_money" ? "Недостаточно монет 🪙"
+    : data.error === "already_active" ? "У вас уже идёт партия" : "Ошибка, попробуйте позже";
+  if (data.error === "already_active" || data.error === "no_game") bjLoad();
+}
+$("bj_start").onclick = () => {
+  const bet = parseInt($("bjbet").value, 10);
+  if (!bet || bet < 1) { $("bjmsg").textContent = "Введи ставку"; return; }
+  if (bet > (window._bal||0)) { $("bjmsg").textContent = "Недостаточно монет 🪙"; return; }
+  bjCall("/api/bj/start", { bet });
+};
+$("bj_hit").onclick = () => bjCall("/api/bj/action", { action: "hit" });
+$("bj_stand").onclick = () => bjCall("/api/bj/action", { action: "stand" });
+$("bj_double").onclick = () => bjCall("/api/bj/action", { action: "double" });
+async function bjLoad() { const { status, data } = await post("/api/bj/state"); if (status === 200 && data.active) renderBJ(data); }
+
 // ---------- админка ----------
+const fmtTime = ts => new Date(ts*1000).toLocaleString("ru-RU", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+const confirmTg = text => new Promise(res => tg.showConfirm ? tg.showConfirm(text, res) : res(confirm(text)));
+[1,2,3].forEach(i => $("a"+i).onclick = () => {
+  [1,2,3].forEach(j => { $("a"+j).classList.toggle("on", j===i); $("ap"+j).style.display = j===i ? "flex" : "none"; });
+});
 async function loadStats() {
   const { status, data } = await post("/api/admin/stats");
   if (status !== 200) return;
@@ -252,31 +375,84 @@ async function loadStats() {
     row.append(l, r); top.appendChild(row);
   });
 }
-$("g_btn").onclick = async () => {
-  const target = $("g_target").value.trim(), amount = parseInt($("g_amount").value, 10);
-  if (!target || !amount) { $("g_msg").textContent = "Заполни ID/@username и сумму"; return; }
-  $("g_btn").disabled = true;
-  const { status, data } = await post("/api/admin/give", { target, amount });
-  $("g_btn").disabled = false;
-  $("g_msg").textContent = status === 200
-    ? `✅ ${data.name || data.user_id}: ${data.applied > 0 ? "+" : ""}${data.applied}, баланс ${data.balance}`
-    : "❌ " + (data.error || "Ошибка");
-  if (status === 200) { $("g_amount").value = ""; loadStats(); }
-};
-$("b_btn").onclick = () => {
-  const text = $("b_text").value.trim();
-  if (!text) { $("b_msg").textContent = "Введи текст"; return; }
-  const go = async ok => {
-    if (!ok) return;
-    $("b_btn").disabled = true;
-    const { status, data } = await post("/api/admin/broadcast", { text });
-    $("b_btn").disabled = false;
-    if (status === 200) { $("b_msg").textContent = `📣 Отправка запущена: получателей ${data.recipients}. Итог придёт в чат с ботом.`; $("b_text").value = ""; }
-    else $("b_msg").textContent = "❌ " + (data.error || "Ошибка");
-  };
-  tg.showConfirm ? tg.showConfirm("Отправить это сообщение всем пользователям?", go) : go(confirm("Отправить всем?"));
+async function loadLog() {
+  const { status, data } = await post("/api/admin/log");
+  if (status !== 200) return;
+  const box = $("log"); box.innerHTML = data.items.length ? "" : "Пока пусто";
+  data.items.forEach(it => {
+    const row = document.createElement("div"); row.className = "logrow";
+    const l = document.createElement("div"); l.textContent = (it.name || it.id) + (it.username ? " @"+it.username : "");
+    const sm = document.createElement("small"); sm.textContent = fmtTime(it.ts) + " · " + it.reason; l.appendChild(sm);
+    const r = document.createElement("b"); r.textContent = (it.delta > 0 ? "+" : "") + it.delta; r.style.color = it.delta > 0 ? "#4ade80" : "#f87171";
+    row.append(l, r); box.appendChild(row);
+  });
+}
+$("ga_btn").onclick = async () => {
+  const amount = parseInt($("ga_amount").value, 10);
+  if (!amount || amount < 1) { $("ga_msg").textContent = "Введи сумму"; return; }
+  if (!await confirmTg(`Начислить ${amount} монет КАЖДОМУ пользователю?`)) return;
+  $("ga_btn").disabled = true;
+  const { status, data } = await post("/api/admin/giveall", { amount, notify: $("ga_notify").checked });
+  $("ga_btn").disabled = false;
+  $("ga_msg").textContent = status === 200 ? `✅ Начислено ${data.count} пользователям` : "❌ " + (data.error || "Ошибка");
+  if (status === 200) { $("ga_amount").value = ""; loadStats(); loadLog(); }
 };
 
+// действия над игроком
+async function userAct(path, extra, okText) {
+  const target = $("u_target").value.trim();
+  if (!target) { $("u_msg").textContent = "Укажи ID или @username"; return null; }
+  const { status, data } = await post(path, { target, ...extra });
+  $("u_msg").textContent = status === 200 ? "✅ " + okText(data) : "❌ " + (data.error || "Ошибка");
+  if (status === 200) findUser();
+  return status === 200 ? data : null;
+}
+async function findUser() {
+  const target = $("u_target").value.trim(); if (!target) return;
+  const { status, data } = await post("/api/admin/find", { target });
+  const box = $("u_info");
+  if (status !== 200) { box.textContent = "❌ " + (data.error || "Ошибка"); return; }
+  const cd = data.cooldown_left;
+  box.textContent = [
+    `${data.name || "—"}${data.username ? " @"+data.username : ""} · id ${data.id}`,
+    `Баланс: ${data.balance.toLocaleString("ru-RU")} 🪙`,
+    `Прокруток рулетки: ${data.spins}` + (cd > 0 ? ` · до следующей ${Math.floor(cd/3600)}ч ${Math.floor(cd%3600/60)}м` : " · можно крутить"),
+    `Был(а) в боте: ${data.last_seen ? fmtTime(data.last_seen) : "—"}`,
+    (data.banned ? "🚫 Бан в играх" : "") + (data.blocked_bot ? " · заблокировал(а) бота" : ""),
+  ].filter(Boolean).join("\n");
+  box.style.whiteSpace = "pre-line";
+}
+const amountVal = () => parseInt($("u_amount").value, 10);
+$("u_find").onclick = findUser;
+$("u_give").onclick = () => { const a = amountVal(); if (!a || a < 1) { $("u_msg").textContent = "Введи сумму"; return; }
+  userAct("/api/admin/give", { amount: a }, d => `${d.name || d.user_id}: +${d.applied}, баланс ${d.balance}`); };
+$("u_take").onclick = () => { const a = amountVal(); if (!a || a < 1) { $("u_msg").textContent = "Введи сумму"; return; }
+  userAct("/api/admin/give", { amount: -a }, d => `${d.name || d.user_id}: ${d.applied}, баланс ${d.balance}`); };
+$("u_set").onclick = () => { const a = amountVal(); if (isNaN(a) || a < 0) { $("u_msg").textContent = "Введи сумму (0 или больше)"; return; }
+  userAct("/api/admin/setbal", { amount: a }, d => `${d.name || ""}: баланс теперь ${d.balance}`); };
+$("u_cd").onclick = () => userAct("/api/admin/resetcd", {}, d => `${d.name || ""}: рулетка снова доступна`);
+$("u_ban").onclick = async () => { if (await confirmTg("Закрыть игроку доступ к играм?")) userAct("/api/admin/ban", { ban: true }, d => `${d.name || ""} забанен в играх`); };
+$("u_unban").onclick = () => userAct("/api/admin/ban", { ban: false }, d => `${d.name || ""} разбанен`);
+$("u_dm").onclick = async () => {
+  const text = $("u_text").value.trim();
+  if (!text) { $("u_msg").textContent = "Введи текст сообщения"; return; }
+  const r = await userAct("/api/admin/dm", { text }, d => `Сообщение отправлено: ${d.name || ""}`);
+  if (r) $("u_text").value = "";
+};
+
+// рассылка
+$("b_btn").onclick = async () => {
+  const text = $("b_text").value.trim();
+  if (!text) { $("b_msg").textContent = "Введи текст"; return; }
+  if (!await confirmTg("Отправить это сообщение всем пользователям?")) return;
+  $("b_btn").disabled = true;
+  const { status, data } = await post("/api/admin/broadcast", { text });
+  $("b_btn").disabled = false;
+  if (status === 200) { $("b_msg").textContent = `📣 Отправка запущена: получателей ${data.recipients}. Итог придёт в чат с ботом.`; $("b_text").value = ""; }
+  else $("b_msg").textContent = "❌ " + (data.error || "Ошибка");
+};
+
+bjLoad();
 init();
 </script>
 </body>
